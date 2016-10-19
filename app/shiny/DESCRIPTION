@@ -1,0 +1,14 @@
+Package: jirar
+Title: Exploit the worklogging in jira to generate some performance graphics
+Version: 0.0.1.0
+Authors@R: person("Ricardo José", "Olvera Flores", email = "olveraricardo72@gmail.com", role = c("aut", "cre"))
+Maintainer: Ricardo José Olvera Flores <olveraricardo72@gmail.com>
+Description: The package produces some graphics from information stored in a
+    Jira (Attlasian) installation using the Jira api to download information
+    from a Sprint, meaning only useful if you use the Agile project template.
+Depends:
+    R (>= 3.1.2), dplyr, ggplot2, httr, jsonlite, reshape2, shiny, shinydashboard
+License: GPL
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 5.0.1
