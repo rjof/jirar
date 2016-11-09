@@ -127,7 +127,6 @@ getSprintData <- function() {
 }
 
 loadData <- function() {
-  message("here")
   u <<- getUsers()
     sprint <<- getSprintData()
     sprintStart <<- as.Date(
@@ -141,11 +140,11 @@ loadData <- function() {
         format="%d/%b/%y %H:%M %p") + 0:21
     weekend <<- weekdays(dates) %in% c("Saturday", "Sunday")
     i1 <<- getIssuesJson()
+    awl <<- getAllWorklogs(i1$issues$key)
     issuesDF <<- buildDFissues(i1)
     usersDF <<- getUserDF(u)
     usersDF <<- removeEmptyUsers(issuesDF, usersDF)
     issuesJson <<- getIndividualIssuesJson(issuesDF$'Issue key')
-    awl <<- getAllWorklogs(i1$issues$key)
     cat(file=stderr(), "Total amount of issues: ", nrow(issuesDF), "\n")
 }
 

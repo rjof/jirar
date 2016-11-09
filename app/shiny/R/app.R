@@ -45,6 +45,7 @@ source("parameters.R")
 options(digits.sec=3)
 ## Needed to port it in a R portable with spanish al LC
 ## Sys.setlocale("LC_TIME", "English")
+##loadData()
 
 USER <- NULL
 USER$Logged <- FALSE
@@ -151,8 +152,6 @@ server <- function(input, output) {
                 iPlot <- group_by(iPlot, `assignee name`)
                 iPlot2 <- summarize(iPlot,sum(`time spent (h)`))
                 iPlot <- iPlot2[order(iPlot2$"sum(`time spent (h)`)"),]
-                ## iPlot <- data.frame(`assignee name` = vector("Rodrigo Luna Arreguin", "Pablo Castrejón", "Miguel Galvez", "Miguel Rueda", "Xochitl Soto", "Frederic Ferreira", "Alan Popoca", "Ricardo Tapia", "Emilio Méndez", "Carlos Aaron Barba Arias", "Ricardo José Olvera Flores", "Marco A. López", "Gabriel Gonzalez Martinez"),
-                ## `time spent (h)` = vector(30, 33, 38, 51.8333333333333, 61, 63.1666666666667, 65, 67, 71, 74.25, 76.45, 82.5, 92))
                 g <- NULL
                 g <- ggplot(iPlot, aes(x=reorder(iPlot$"assignee name", iPlot$"sum(`time spent (h)`)"), y=iPlot$"sum(`time spent (h)`)", fill = iPlot$'assignee name'), environment = e)
                 g <- g + geom_bar(stat="identity")

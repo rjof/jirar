@@ -4,7 +4,6 @@
 #' Retrives the users from Jira.
 #' @export
 getUsers <- function() {
-    message("Username ", Username)
     if (canPingJira()) {
         u1 <- GET(paste0("http://",jiraIp,":",jiraPort,"/rest/api/2/user/assignable/search?project=",jiraProject), authenticate(Username, Password, "basic"), add_headers("Content-Type" = "application/json"), verbose())
         users <- fromJSON(content(u1, "text"))

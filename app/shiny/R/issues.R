@@ -78,6 +78,10 @@ getAllWorklogs <- function(issueKeys) {
 #' @return Data frame with columns "Issue key", "assignee key", "assignee name", "status", "type", "original estimate (h)", "time spent (h)", "difference (h)", "story points", "story points filled", "parent", "time judgement"
 #' @export
 buildDFissues <- function(issues) {
+  ## Time spent by issue in this sprint
+  ## wl <- issueListWorklog(issues$issues$key, awl, sprintStart, sprintEnd)
+  ## Aggregate by issue (every worklog is a row)
+  ## timeSpentByIssue <- aggregate(spent ~ `Issue key`, wl, sum)
   ## Build a data.frame to make all the calculations
   ## Clean the people without issues
   t <- as.data.frame(issues$issues$key)
@@ -87,14 +91,18 @@ buildDFissues <- function(issues) {
   t[,"status"] <- issues$issues$fields$status$name
   t[,"type"] <- issues$issues$fields$issuetype$name
   t[,"original estimate (h)"] <- issues$issues$fields$timeoriginalestimate/3600
+  ## This *time spent* takes into account all the time spent in the issue
+  ## disregard of the sprint in which was that time spent
   t[,"time spent (h)"] <- issues$issues$fields$timespent/3600
+  ## To be adecuate for us, it has to be calculated from the worklogs
+  ##t[,"time spent (h)"] <- timeSpentByIssue/3600
   t[,"difference (h)"] <- t[,"original estimate (h)"] - t[,"time spent (h)"]
   t[,"story points"] <- issues$issues$fields$customfield_10008
   t[,"story points filled"] <- setStoryPoints(issues)
   t[,"parent"] <- issues$issues$fields$parent$key  
   ## Maximum story points in the sprint
   maxSP <- max(as.integer(issues$issues$fields$customfield_10008)[!is.na(as.integer(issues$issues$fields$customfield_10008))])
-  t[,"time judgement"] <- (t[,"time spent (h)"]/t[,"original estimate (h)"]) * (t[,"story points filled"]/maxSP)
+  ##t[,"time judgement"] <- (t[,"time spent (h)"]/t[,"original estimate (h)"]) * (t[,"story points filled"]/maxSP)
   message(paste0("nrow ",nrow(t)))
   message(paste0("nrcol ", ncol(t)))
   return (t)
@@ -124,9 +132,10 @@ removeEmptyUsers <- function(issuesDF, usersDF) {
 #' @param issueList A vector with keys of lists
 #' @param worklogs A matrix with all the worklogs of the sprint
 #' @examples
-#' issueListWorklog(vector("PGR-64", "CADMF-219", "BDATA-19"), wl)
+#' issueListWorklog(c("PGR-64", "CADMF-219", "BDATA-19"), awl, sprintStart, sprintEnd)
 #' @export
-issueListWorklog <- function(assignee, worklogs, start, end) {
+issueListWorklog <- function(issueList, worklogs, start, end) {
+  ## message("Is awl comming right ", class(awl))
   answer <- NULL
   inTheIssueList <- worklogs[,1] %in% intersect(worklogs[,1],issueList)
   withEntries <- worklogs[,3] > 0
@@ -145,11 +154,13 @@ issueListWorklog <- function(assignee, worklogs, start, end) {
     }
   }
   df1 <- as.data.frame(df1)
+  names(df1) <- c("Issue key", "Date", "spent")
   df1[,1] <- as.character(df1[,1])
   df1[,2] <- as.POSIXct(df1[,2], format ="%Y-%m-%dT%H:%M:%S")#origin = "1970-01-01 0:0:0")
   df1[,3] <- as.numeric(as.character(df1[,3]))
   df1
 }
+
 
 #' Returns the worklog of a user.
 #' @export
@@ -162,14 +173,15 @@ worklogOfAssignee <- function(assigneeKey, issuesMatrix, worklogsMatrix, start, 
   worklogs <- data.frame()
   tmp <- unlist(issuesMatrix[issuesMatrix[,'assignee']==assigneeKey,"issue"])
   m2 <- cbind(tmp,worklogsMatrix[unlist(worklogsMatrix[,"issue"]) %in% tmp,"worklogs"])
-  m2 <- cbind(tmp,worklogsMatrix[unlist(worklogsMatrix[,"issue"]) %in% tmp,"worklogs"])
   c1 <- NULL
   c2 <- NULL
   c3 <- NULL
   for (i in 1:length(tmp)){
     if(length(m2[,2][[i]]) > 0){
       c1 <- c(as.vector(c1), as.vector(rep(tmp[i],length(unlist(m2[,2][[i]]['started'])))))
-      c2 <- c(c2, as.POSIXct(strptime(as.character(unlist(m2[,2][[i]]['started'])),format="%Y-%m-%d"),origin = "1970-01-01", tz="America/Mexico_City"))
+      c2 <- c(c2, as.POSIXct(strptime(as.character(unlist(m2[,2][[i]]['started'])),
+                                      format="%Y-%m-%d"),
+                             origin = "1970-01-01", tz="America/Mexico_City"))
 ##      c2 <- c(as.vector(c2),as.vector(as.POSIXct(strptime(as.character(unlist(m2[,2][[i]]['started'])),format="%Y-%m-%d"),origin = "1970-01-01", tz="America/Mexico_City")))
 ##      c2 <- c(as.vector(c2),as.vector(unlist(m2[,2][[i]]['started'])))
       c3 <- c(as.vector(c3), as.vector(unlist(m2[,2][[i]]['timeSpentSeconds'])))
@@ -178,14 +190,16 @@ worklogOfAssignee <- function(assigneeKey, issuesMatrix, worklogsMatrix, start, 
   worklogs <- as.data.frame(cbind(key=c1, started=c2, spent=c3, deparse.level=0))
   if(nrow(worklogs) > 0){
     worklogs[,2] <- as.POSIXct(as.numeric(as.character(worklogs[,2])),format="%Y-%m-%d", origin = "1970-01-01", tz="America/Mexico_City")
-##    worklogs[,2] <- as.POSIXct(as.integer(worklogs[,2]), origin = "1970-01-01")
     worklogs[,3] <- as.numeric(as.character(worklogs[,3]))
+    ## Filter sprint dates
+    worklogs <- worklogs[as.Date(worklogs[,'started']) >= start,]
+    worklogs <- worklogs[as.Date(worklogs[,'started']) <= end,]
     return(worklogs)
   } else {
     return(NULL)
   }
 }
-##worklogOfAssignee("xochitl.soto", issuesJson, awl, sprintStart, sprintEnd)
+##x<-worklogOfAssignee("emilio.mendez", issuesJson, awl, sprintStart, sprintEnd)
 
 #' Returns the worklog of all the users.
 #' @export
