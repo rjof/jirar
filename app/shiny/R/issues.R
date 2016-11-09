@@ -78,34 +78,37 @@ getAllWorklogs <- function(issueKeys) {
 #' @return Data frame with columns "Issue key", "assignee key", "assignee name", "status", "type", "original estimate (h)", "time spent (h)", "difference (h)", "story points", "story points filled", "parent", "time judgement"
 #' @export
 buildDFissues <- function(issues) {
-  ## Time spent by issue in this sprint
-  ## wl <- issueListWorklog(issues$issues$key, awl, sprintStart, sprintEnd)
-  ## Aggregate by issue (every worklog is a row)
-  ## timeSpentByIssue <- aggregate(spent ~ `Issue key`, wl, sum)
-  ## Build a data.frame to make all the calculations
-  ## Clean the people without issues
-  t <- as.data.frame(issues$issues$key)
-  names(t) <- "Issue key"
-  t[,"assignee key"] <- issues$issues$fields$assigne$key
-  t[,"assignee name"] <- issues$issues$fields$assigne$displayName
-  t[,"status"] <- issues$issues$fields$status$name
-  t[,"type"] <- issues$issues$fields$issuetype$name
-  t[,"original estimate (h)"] <- issues$issues$fields$timeoriginalestimate/3600
-  ## This *time spent* takes into account all the time spent in the issue
-  ## disregard of the sprint in which was that time spent
-  t[,"time spent (h)"] <- issues$issues$fields$timespent/3600
-  ## To be adecuate for us, it has to be calculated from the worklogs
-  ##t[,"time spent (h)"] <- timeSpentByIssue/3600
-  t[,"difference (h)"] <- t[,"original estimate (h)"] - t[,"time spent (h)"]
-  t[,"story points"] <- issues$issues$fields$customfield_10008
-  t[,"story points filled"] <- setStoryPoints(issues)
-  t[,"parent"] <- issues$issues$fields$parent$key  
-  ## Maximum story points in the sprint
-  maxSP <- max(as.integer(issues$issues$fields$customfield_10008)[!is.na(as.integer(issues$issues$fields$customfield_10008))])
-  ##t[,"time judgement"] <- (t[,"time spent (h)"]/t[,"original estimate (h)"]) * (t[,"story points filled"]/maxSP)
-  message(paste0("nrow ",nrow(t)))
-  message(paste0("nrcol ", ncol(t)))
-  return (t)
+    ## Time spent by issue in this sprint
+    wl <- issueListWorklog(issues$issues$key, awl, sprintStart, sprintEnd)
+    ## Aggregate by issue (every worklog is a row)
+    timeSpentByIssue <- aggregate(spent ~ `Issue key`, wl, sum)
+    ## Build a data.frame to make all the calculations
+    ## Clean the people without issues
+    logicVectorOfIssuesWithLog <- issues$issues$key %in% timeSpentByIssue$`Issue key`
+    t <- as.data.frame(issues$issues$key[logicVectorOfIssuesWithLog])
+    names(t) <- "Issue key"
+    t[,"assignee key"] <- issues$issues$fields$assigne$key[logicVectorOfIssuesWithLog]
+    t[,"assignee name"] <- issues$issues$fields$assigne$displayName[logicVectorOfIssuesWithLog]
+    t[,"status"] <- issues$issues$fields$status$name[logicVectorOfIssuesWithLog]
+    t[,"type"] <- issues$issues$fields$issuetype$name[logicVectorOfIssuesWithLog]
+    t[,"original estimate (h)"] <- (issues$issues$fields$timeoriginalestimate[logicVectorOfIssuesWithLog])/3600
+    ## This *time spent* takes into account all the time spent in the issue
+    ## disregard of the sprint in which was that time spent
+    ## t[,"time spent (h)"] <- (issues$issues$fields$timespent[issues$issues$key %in% timeSpentByIssue$`Issue key`])/3600
+    ## To be adecuate for us, it has to be calculated from the worklogs
+    t <- merge(t,timeSpentByIssue, by="Issue key")
+    colnames(t)[7] <- "time spent (h)"
+    t[,"time spent (h)"] <- t[,"time spent (h)"]/3600
+    t[,"difference (h)"] <- t[,"original estimate (h)"] - t[,"time spent (h)"]
+    t[,"story points"] <- issues$issues$fields$customfield_10008[issues$issues$key %in% timeSpentByIssue$`Issue key`]
+    t[,"story points filled"] <- setStoryPoints(issues[issues$issues$key %in% timeSpentByIssue$`Issue key`])
+    t[,"parent"] <- issues$issues$fields$parent$key[issues$issues$key %in% timeSpentByIssue$`Issue key`]
+    ## Maximum story points in the sprint
+    maxSP <- max(as.integer(issues$issues$fields$customfield_10008)[!is.na(as.integer(issues$issues$fields$customfield_10008))])
+    ##t[,"time judgement"] <- (t[,"time spent (h)"]/t[,"original estimate (h)"]) * (t[,"story points filled"]/maxSP)
+    message(paste0("nrow ",nrow(t)))
+    message(paste0("nrcol ", ncol(t)))
+    return (t)
 }
 
 #' Remove from the users.

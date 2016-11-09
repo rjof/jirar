@@ -103,7 +103,8 @@ storyPoints <- function(key, i) {
 #' @export
 setStoryPoints <- function(issues) {
   r <- NULL
-  for ( i in 1:issues$total ) {
+  message("length of issues: ", length(issues))
+  for ( i in 1:length(issues) ) {
     r <- c(r, storyPoints(issues$issues$key[i], issues))
   }
   r
@@ -128,7 +129,7 @@ getSprintData <- function() {
 
 loadData <- function() {
   u <<- getUsers()
-    sprint <<- getSprintData()
+  sprint <<- getSprintData()
     sprintStart <<- as.Date(
         sprint$sprint$startDate,
         format="%d/%b/%y %H:%M %p")

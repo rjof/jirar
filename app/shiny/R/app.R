@@ -142,7 +142,7 @@ server <- function(input, output) {
                 selectInput("selectTeamMember"
                            ,label = h3("Team members")
                            ,choices = getUserChoices(usersDF)
-                           ,selected = username
+                           ,selected = Username
                             )
             })
 
@@ -218,8 +218,8 @@ server <- function(input, output) {
                 ymax<- max(data[,3])/3600
                 g <- ggplot(environment = e)
                 g <- g + geom_bar(data=data
-                                 ,aes(x=started
-                                     ,y=spent/3600
+                                 ,aes(x=started+(86400/2)
+                                     ,y=(spent/3600)
                                      ,alpha=.5
                                      ,width=86400
                                       )
@@ -229,20 +229,24 @@ server <- function(input, output) {
                 ## g <- g + geom_text(data=data
                 ##                    ,aes(label=data[,1]
                 ##                         ,x=started
-                ##                         ,y=spent/3600)
+                ##                         ,y=(spent/3600)*2)
                 ##                    ,hjust=2
                 ##                    ,stat="identity"
                 ##                    ,angle=90
-                ##                    ,size=(data[,3]/3600)*(5/8)
+                ##                    ##,size=(data[,3]/3600)*(5/8)
                 ##                    )
                 for (d in dates[weekend]){
-                    xmin <- as.POSIXct(strptime(as.Date(d, origin = "1970-01-01"), format="%Y-%m-%d"), origin = "1970-01-01", tz="America/Mexico_City")
-                    xmax <- xmin + 86400
-                    g <- g + annotate("rect", xmin=xmin, xmax=xmax, ymin=0, ymax=ymax, alpha=0.3)
+                  xmin <- as.POSIXct(strptime(as.Date(d, origin = "1970-01-01"),
+                                              format="%Y-%m-%d"), origin = "1970-01-01",
+                                     tz="America/Mexico_City")
+                  xmax <- xmin + 86400
+                  g <- g + annotate("rect", xmin=xmin, xmax=xmax, ymin=0, ymax=ymax, alpha=0.3)
                 }
                 g <- g + theme(legend.position="none")
                 g <- g + ggtitle(paste0("Spent of ", usersDF[usersDF[,1]==input$selectTeamMember,2]))
                 g <- g + ylab("Hours")
+                g <- g + scale_x_datetime(date_labels = "%b %d", date_breaks="1 day")
+                g <- g + theme(axis.text.x = element_text(angle = 60, hjust = 1))
                 print(g)
             })
 
