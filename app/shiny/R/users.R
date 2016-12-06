@@ -30,3 +30,21 @@ getUserDF <- function(u) {
                      stringsAsFactors=FALSE)
     u2
 }
+
+#' Remove from the users.
+#' @param x A number
+#' @param y A number
+#' @return The sum of \code{x} and \code{y}
+#' @examples
+#' add(1, 1)
+#' add(10, 1)
+#' @export
+removeEmptyUsers <- function(issuesDF, usersDF) {
+    newUsersDF <- data.frame()
+    for (user in usersDF[,'u.key']){
+        if(nrow(issuesDF[issuesDF[,'Assignee key'] == user,]) > 0){
+            newUsersDF <- rbind(newUsersDF, usersDF[usersDF[,'u.key'] == user,])
+        }
+    }
+    newUsersDF
+}

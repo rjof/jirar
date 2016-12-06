@@ -40,6 +40,7 @@ source("general.R")
 packageLoading()
 createDirectories()
 source("users.R")
+source("worklog.R")
 source("issues.R")
 source("parameters.R")
 options(digits.sec=3)
@@ -56,6 +57,14 @@ ui <- dashboardPage(
         sidebarMenu(
             menuItem("Team", tabName = "team", icon = icon("dashboard"))
            ,menuItem("Personal", tabName = "widgets", icon = icon("th"))
+           ,menuItem("Plan", tabName = "calendar", icon = icon("calendar"))
+           ,uiOutput('teamMembers')
+            ##           ,verbatimTextOutput("selectTeamMemberValue")
+           ,checkboxGroupInput('checkboxgroupIssueStatus2'
+                              ,'Status:'
+                              ,c('To Do', 'In Progress', 'Done')
+                              ,inline = TRUE
+                              ,selected = c('To Do', 'In Progress', 'Done'))
         )
     )
    ,dashboardBody(
@@ -68,36 +77,41 @@ ui <- dashboardPage(
                        ,box(plotOutput("teamBurn", height = 350))
                     )
                    ,fluidRow(
-                        box(plotOutput("plot2", height = 350))
+                        box(plotOutput("estimationError", height = 350))
+                       ,box(plotOutput("storyPointsVSestimationError", height = 350))
                     )
-                   ,fluidRow(
-                        box(plotOutput("plot1", height = 250))
-                       ,box(
-                            title = "Controls"
-                           ,sliderInput("slider", "Number of observations:", 1, 100, 50)
-                        )
-                    )
+                    ## ,fluidRow(
+                    ##      box(plotOutput("plot1", height = 250))
+                    ##     ,box(
+                    ##          title = "Controls"
+                    ##         ,sliderInput("slider", "Number of observations:", 1, 100, 50)
+                    ##      )
+                    ##  )
                     ),
             ## Second tab content
             tabItem(tabName = "widgets",
                     h2("Personal graphs")
-                   ,fluidRow(
-                        uiOutput('teamMembers')
-                        ## ,verbatimTextOutput("selectTeamMemberValue")
-                       ,checkboxGroupInput('checkboxgroupIssueStatus'
-                                          ,'Status:'
-                                          ,c('To Do', 'In Progress', 'Done')
-                                          ,inline = TRUE
-                                          ,selected = c('To Do', 'In Progress', 'Done'))
-                       ,hr()
-                        ##,verbatimTextOutput("checkboxgroupIssueStatusValue")
-                    )
                    ,fluidRow(
                         box(plotOutput("worklog", height=350))
                        ,box(plotOutput("personalBurn", height=350))
                        ,box(plotOutput("originalVSspent", height=350))
                     )
                    ,tableOutput('table')
+                    )
+           ,
+            ## Third tab content
+            tabItem(tabName = "calendar",
+                    h2("Personal analysis to plan next sprint")
+                   ,fluidRow(
+                        h3("Story point")
+                       ,p("Is a arbitrary measure used by Scrum teams.")
+                       ,p("This is used to measure the effort required to implement a story. In simple terms its a number that tells the team how hard the story is. Hard could be related to complexity, unknowns and effort")
+                       ,p("https://agilefaq.wordpress.com/2007/11/13/what-is-a-story-point/")
+                        ## ,box(plotOutput("", height=350))
+                        ## ,box(plotOutput("", height=350))
+                        ## ,box(plotOutput("", height=350))
+                    )
+                    ## ,tableOutput('table')
                     )
         )
     )
@@ -149,31 +163,53 @@ server <- function(input, output) {
             output$timespent <- renderPlot({
                 e <- environment()
                 iPlot <- issuesDF[!is.na(issuesDF[,7]),]
-                iPlot <- group_by(iPlot, `assignee name`)
-                iPlot2 <- summarize(iPlot,sum(`time spent (h)`))
-                iPlot <- iPlot2[order(iPlot2$"sum(`time spent (h)`)"),]
+                iPlot <- group_by(iPlot, `Assignee name`)
+                iPlot2 <- summarize(iPlot,sum(`Spent (h)`))
+                iPlot <- iPlot2[order(iPlot2$"sum(`Spent (h)`)"),]
                 g <- NULL
-                g <- ggplot(iPlot, aes(x=reorder(iPlot$"assignee name", iPlot$"sum(`time spent (h)`)"), y=iPlot$"sum(`time spent (h)`)", fill = iPlot$'assignee name'), environment = e)
+                g <- ggplot(iPlot, aes(x=reorder(iPlot$"Assignee name", iPlot$"sum(`Spent (h)`)"), y=iPlot$"sum(`Spent (h)`)", fill = iPlot$'Assignee name'), environment = e)
                 g <- g + geom_bar(stat="identity")
                 g <- g + theme(axis.text.x = element_text(angle = 60, hjust = 1))
                 g <- g + guides(fill = FALSE)
-                g <- g + ylab("time spent (h)")
+                g <- g + ylab("Time spent (h)")
                 g <- g + xlab("")
                 print(g)
             })
-            
+
+            output$storyPointsVSestimationError <- renderPlot({
+                e <- environment()
+                iDFsp <- issuesDF[issuesDF[,"Story points"] > 0, ]
+                iDFsp<-iDFsp[order(iDFsp$`Aggregated estimate (h)`),]
+                t1<-as.data.frame(table(iDFsp$`Story points`))
+                names(t1) <- c("Story p.","# issues")
+                t2 <- aggregate(cbind(`Aggregated estimate (h)`, `Aggregated estimate error (h)`) ~ `Story points`, iDFsp, sum)
+                t2<-cbind(t2,Count=t1[,2])
+                t2<-mutate(t2, `AEE Pounded`=`Aggregated estimate error (h)`/`Count`)
+                xmin <- min(t2[,1])
+                xmax <- max(t2[,1])
+                ymin <- min(t2[,5])
+                ymax <- max(t2[,5])
+                g <- ggplot(data=t2, aes(x=t2$`Story points`, y=t2$`AEE Pounded`), environment = e)
+                g <- g + ggtitle("Relation of (Miss)estimation with story points")
+                g <- g + geom_bar(stat='identity', aes(fill=t2$`Aggregated estimate (h)`))
+                g <- g + scale_fill_continuous(name="Estimate (h)")
+                g <- g + ylab(expression(frac(sum("Estimate error (h)"),"Amount of issues")))
+                g <- g + xlab("Story points")
+                g <- g + annotation_custom(tableGrob(t1),
+                                           xmax=xmax,
+                                           ymin=ymin,
+                                           xmin=xmin + (xmax-xmin)/8,
+                                           ymax=ymin + (ymax-ymin)/8)
+                print(g)
+            })
+
             issuesOfUser <- reactive({
-                ofUser <- grep(input$selectTeamMember, issuesDF$'assignee key')
-                withStatus <- grep(gsub(", ", "|", toString(input$checkboxgroupIssueStatus)), issuesDF[,"status"])
+                ofUser <- grep(input$selectTeamMember, issuesDF$'Assignee key')
+                withStatus <- grep(gsub(", ", "|", toString(input$checkboxgroupIssueStatus)), issuesDF[,"Status"])
                 toShow <- intersect(ofUser, withStatus)
                 ## cat(file=stderr(), "withStatus: ", as.character(withStatus), "\n")
                 output$debug <- renderPrint ({ toShow })
-                ## Issue key, assignee key, assignee name, status, original estimate (h), time spent (h), difference (h), story points, story points filled, parent, time judgement
-                total <- c("Total", issuesDF[toShow[1],2], issuesDF[toShow[1],3], "-", "-", mean(!is.na(issuesDF[toShow,6])),mean(!is.na(issuesDF[toShow,7])), mean(!is.na(issuesDF[toShow,8])), mean(!is.na(issuesDF[toShow,9])), mean(!is.na(issuesDF[toShow,10])),"-", mean(!is.na(issuesDF[toShow,12])))
-                names(total) <- c("Issue key", "assignee key", "assignee name", "status", "original estimate (h)", "time spent (h)", "difference (h)", "story points", "story points filled", "parent", "time judgement")
-                ## cat(file=stderr(), "Total: ", total, "\n")
-                table <- rbind(issuesDF[toShow,], total)
-                table
+                issuesDF[toShow,]
             })
             
             output$table <- renderTable({
@@ -191,7 +227,7 @@ server <- function(input, output) {
             histdata <- rnorm(500)
 
             output$teamBurn <- renderPlot({
-                sprintTotalSeconds <- sum(issuesDF[!is.na(issuesDF[,'original estimate (h)']),'original estimate (h)']) * 3600
+                sprintTotalSeconds <- sum(issuesDF[!is.na(issuesDF[,'Estimate (h)']),'Estimate (h)']) * 3600
                 data <- NULL
                 ##    data <- allWorklog(issuesJson, sprintStart, sprintEnd)
                 data <- allWorklog(awl, sprintStart, sprintEnd)
@@ -236,11 +272,11 @@ server <- function(input, output) {
                 ##                    ##,size=(data[,3]/3600)*(5/8)
                 ##                    )
                 for (d in dates[weekend]){
-                  xmin <- as.POSIXct(strptime(as.Date(d, origin = "1970-01-01"),
-                                              format="%Y-%m-%d"), origin = "1970-01-01",
-                                     tz="America/Mexico_City")
-                  xmax <- xmin + 86400
-                  g <- g + annotate("rect", xmin=xmin, xmax=xmax, ymin=0, ymax=ymax, alpha=0.3)
+                    xmin <- as.POSIXct(strptime(as.Date(d, origin = "1970-01-01"),
+                                                format="%Y-%m-%d"), origin = "1970-01-01",
+                                       tz="America/Mexico_City")
+                    xmax <- xmin + 86400
+                    g <- g + annotate("rect", xmin=xmin, xmax=xmax, ymin=0, ymax=ymax, alpha=0.3)
                 }
                 g <- g + theme(legend.position="none")
                 g <- g + ggtitle(paste0("Spent of ", usersDF[usersDF[,1]==input$selectTeamMember,2]))
@@ -252,7 +288,7 @@ server <- function(input, output) {
 
             output$personalBurn <- renderPlot({
                 assignee <- input$selectTeamMember
-                sprintTotalSeconds <- sum(issuesDF[!is.na(issuesDF[,'original estimate (h)'])&issuesDF[,2]==assignee,'original estimate (h)']) * 3600
+                sprintTotalSeconds <- sum(issuesDF[!is.na(issuesDF[,'Estimate (h)'])&issuesDF[,2]==assignee,'Estimate (h)']) * 3600
                 data <- NULL
                 data <- worklogOfAssignee(assignee, issuesJson, awl, sprintStart, sprintEnd)
                 data <- data[order(data[,"started"]),]
@@ -273,11 +309,11 @@ server <- function(input, output) {
 
             output$originalVSspent <- renderPlot({
                 data <- NULL
-                ofUser <- grep(input$selectTeamMember, issuesDF$'assignee key')
-                withStatus <- grep(gsub(", ", "|", toString(input$checkboxgroupIssueStatus)), issuesDF[,"status"])
+                ofUser <- grep(input$selectTeamMember, issuesDF$'Assignee key')
+                withStatus <- grep(gsub(", ", "|", toString(input$checkboxgroupIssueStatus)), issuesDF[,"Status"])
                 toShow <- intersect(ofUser, withStatus)
-                data <- issuesDF[toShow,c("Issue key", "original estimate (h)", "time spent (h)")]
-                data <- data[!is.na(data[,"original estimate (h)"]) & !is.na(data[,"time spent (h)"]),]
+                data <- issuesDF[toShow,c("Issue key", "Estimate (h)", "Spent (h)")]
+                data <- data[!is.na(data[,"Estimate (h)"]) & !is.na(data[,"Spent (h)"]),]
                 data <- melt(data)
                 e <- environment()
                 g <- ggplot(environment = e)
@@ -302,21 +338,27 @@ server <- function(input, output) {
                 hist(data)
             })
 
-            output$plot2 <- renderPlot({
-                t4plot <- issuesDF[!is.na(issuesDF[,6])&!is.na(issuesDF[,7]),]
+            output$estimationError <- renderPlot({
+                x <- aggregate(cbind(`Story points`,`Estimate (h)`,`Spent (h)`,`Estimate error (h)`) ~ `Assignee name`, issuesDF, sum)
                 e <- environment()
-                g <- ggplot(t4plot, aes(x=t4plot[,"original estimate (h)"], y=t4plot[,"time spent (h)"]), environment = e)
-                g <- g + geom_point(aes(color = t4plot$'assignee name'))
-                g <- g + scale_size_area()
-                g <- g + ylab("time spent (h)")
-                g <- g + xlab("original estimate (h)")
+                g <- ggplot(environment = e)
+                g <- g + ggtitle("Estimation errors. Negative means more work than estimated")
+                g <- g+geom_bar(data=x,
+                                aes(x=reorder(x$`Assignee name`,
+                                              x$`Estimate error (h)`),
+                                    y=x$`Estimate error (h)`,
+                                    fill=x$`Assignee name`),
+                                stat='identity')
+                g <- g + theme(axis.text.x = element_text(angle = 60, hjust = 1))
+                g <- g + ylab("Estimate error (h)")
+                g <- g + xlab("")
+                g <- g + guides(fill = FALSE)
                 print(g)
-                ## plot(t4plot[,"original estimate (h)"], t4plot[,"time spent (h)"])
             })
 
             output$page <- renderUI({
-            ## To disappear the login block
-            ##     ## box(width = 12, div(class="outer",do.call(navbarPage,c(inverse=TRUE,title = "Contratulations you got in!",ui2()))))
+                ## To disappear the login block
+                ##     ## box(width = 12, div(class="outer",do.call(navbarPage,c(inverse=TRUE,title = "Contratulations you got in!",ui2()))))
             })
         }
     })

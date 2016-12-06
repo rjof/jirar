@@ -5,6 +5,7 @@
 # Some jira data
 app/shiny/R/jiradata/issuesIndividual/*
 app/shiny/R/jiradata/worklogsIndividual/*
+app/shiny/R/*tgz
 
 # History files
 app/shiny/R/.Rhistory
